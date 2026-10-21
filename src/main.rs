@@ -18,7 +18,6 @@
 
 use std::fs;
 use std::io::{self, Read, Write};
-use std::os::unix::fs::PermissionsExt;
 use std::path::{Path, PathBuf};
 use std::process::ExitCode;
 
@@ -451,6 +450,7 @@ mod tests {
 
     #[test]
     fn preserves_permissions() {
+        use std::os::unix::fs::PermissionsExt;
         let d = tmpdir("perm");
         let p = d.join("run.sh");
         fs::write(&p, "echo a\n").unwrap();
