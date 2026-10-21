@@ -313,12 +313,13 @@ fn write_atomic(path: &Path, content: &str) -> io::Result<()> {
     let name = path.file_name().map(|n| n.to_string_lossy().into_owned()).unwrap_or_default();
     let nonce = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).map(|d| d.as_nanos()).unwrap_or(0);
     let tmp = path.with_file_name(format!(".{name}.medit.{}.{nonce}", std::process::id()));
-    // create_new (O_EXCL) не идёт по симлинкам и не трогает чужой файл; 0o600 до записи содержимого
+    // create_new (O_EXCL) не идёт по симлинкам и не трогает чужой файл.
+    // Существующий файл: 0o600 до записи, затем его исходные права; новый — 0o666 с учётом umask.
     let res = (|| {
-        let mut w = fs::OpenOptions::new().write(true).create_new(true).mode(0o600).open(&tmp)?;
-        match perms {
-            Some(p) => w.set_permissions(p)?,
-            None => w.set_permissions(fs::Permissions::from_mode(0o644))?, // новый файл
+        let mode = if perms.is_some() { 0o600 } else { 0o666 };
+        let mut w = fs::OpenOptions::new().write(true).create_new(true).mode(mode).open(&tmp)?;
+        if let Some(p) = perms {
+            w.set_permissions(p)?;
         }
         w.write_all(content.as_bytes())?;
         w.sync_all()?;
