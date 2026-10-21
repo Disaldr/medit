@@ -18,6 +18,7 @@
 
 use std::fs;
 use std::io::{self, Read, Write};
+use std::os::unix::fs::PermissionsExt;
 use std::path::{Path, PathBuf};
 use std::process::ExitCode;
 
@@ -307,20 +308,26 @@ fn write_atomic(path: &Path, content: &str) -> io::Result<()> {
             fs::create_dir_all(dir)?;
         }
     }
+    use std::os::unix::fs::OpenOptionsExt;
     let perms = fs::metadata(path).ok().map(|m| m.permissions());
     let name = path.file_name().map(|n| n.to_string_lossy().into_owned()).unwrap_or_default();
-    let tmp = path.with_file_name(format!(".{name}.medit.{}", std::process::id()));
-    {
-        let mut w = fs::File::create(&tmp)?;
+    let nonce = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).map(|d| d.as_nanos()).unwrap_or(0);
+    let tmp = path.with_file_name(format!(".{name}.medit.{}.{nonce}", std::process::id()));
+    // create_new (O_EXCL) не идёт по симлинкам и не трогает чужой файл; 0o600 до записи содержимого
+    let res = (|| {
+        let mut w = fs::OpenOptions::new().write(true).create_new(true).mode(0o600).open(&tmp)?;
+        match perms {
+            Some(p) => w.set_permissions(p)?,
+            None => w.set_permissions(fs::Permissions::from_mode(0o644))?, // новый файл
+        }
         w.write_all(content.as_bytes())?;
         w.sync_all()?;
-    }
-    if let Some(p) = perms {
-        fs::set_permissions(&tmp, p)?;
-    }
-    fs::rename(&tmp, path).inspect_err(|_| {
+        fs::rename(&tmp, path)
+    })();
+    if res.is_err() {
         let _ = fs::remove_file(&tmp);
-    })
+    }
+    res
 }
 
 fn main() -> ExitCode {
@@ -443,7 +450,6 @@ mod tests {
 
     #[test]
     fn preserves_permissions() {
-        use std::os::unix::fs::PermissionsExt;
         let d = tmpdir("perm");
         let p = d.join("run.sh");
         fs::write(&p, "echo a\n").unwrap();
