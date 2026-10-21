@@ -1,0 +1,8 @@
+{
+  "name": "medit",
+  "version": "0.1.0",
+  "description": "Пакетная правка файлов одним вызовом: много замен в нескольких файлах, всё или ничего",
+  "author": { "name": "Alexandr Koshelev" },
+  "repository": "https://github.com/Disaldr/medit",
+  "license": "MIT"
+}

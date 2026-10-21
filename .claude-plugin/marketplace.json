@@ -1,0 +1,5 @@
+{
+  "name": "medit",
+  "owner": { "name": "Alexandr Koshelev" },
+  "plugins": [{ "name": "medit", "source": "./" }]
+}
